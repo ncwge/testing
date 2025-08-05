@@ -10,41 +10,7 @@ from io import BytesIO
 st.set_page_config(page_title="Multi-Site Appliance SKU Scraper", layout="centered")
 st.title("Multi-Site Appliance SKU Scraper")
 
-# --- Spec parsing for AJMadison ---
-def scrape_specs_ajmadison(soup: BeautifulSoup) -> dict:
-    data = {}
-    for dl in soup.find_all('dl'):
-        for dt, dd in zip(dl.find_all('dt'), dl.find_all('dd')):
-            key = dt.get_text(strip=True).rstrip(':').lower().replace(' ', '_')
-            data[key] = dd.get_text(strip=True)
-    for span in soup.select('span.bold.black'):
-        label = span.get_text(strip=True).rstrip(':')
-        parent = span.parent
-        full = parent.get_text(separator=' ', strip=True)
-        value = full[len(span.get_text()):].strip()
-        key = label.lower().replace(' ', '_')
-        if value:
-            data[key] = value
-    price_td = soup.find("td", class_="right-align table-cell-minified")
-    if price_td:
-        price_text = price_td.get_text(strip=True)
-        if price_text.startswith('$'):
-            data["list_price"] = price_text
-    return data
-
 # --- Site-specific scraping attempts ---
-def try_ajmadison(sku):
-    url = f"https://www.ajmadison.com/cgi-bin/ajmadison/{sku}.html"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        specs = scrape_specs_ajmadison(soup)
-        return specs if specs else None
-    except:
-        return None
-
 def try_us_appliance(sku):
     url = f"https://www.us-appliance.com/{sku}.html"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -104,20 +70,13 @@ def try_plessers(sku):
     except:
         return None
 
-# Add other fallback websites as needed
+# Define scraping order excluding AJMadison
 fallback_sites = [try_us_appliance, try_brothersmain, try_plessers]
 
 # --- Primary scraper logic ---
 def scrape_product_data(sku):
     result = {"sku": sku, "status": "Not found", "source": None, "data": {}}
 
-    # Try AJMadison first
-    specs = try_ajmadison(sku)
-    if specs:
-        result.update({"status": "OK", "source": "AJMadison", "data": specs})
-        return result
-
-    # Try fallback sites
     for fallback in fallback_sites:
         specs = fallback(sku)
         if specs:
