@@ -127,29 +127,40 @@ def scrape_product_data(sku):
     return result
 
 # --- Streamlit UI ---
-st.markdown("Upload a file with one column of SKUs. Scraped results will be returned as JSON.")
+st.markdown("Upload an Excel or text file with one column of SKUs. Scraped results will be returned as JSON.")
 
-uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
+uploaded_file = st.file_uploader("Upload Excel (.xlsx) or Text (.txt) file", type=["xlsx", "txt"])
 
 if uploaded_file:
     try:
-        df_input = pd.read_excel(uploaded_file)
-        if df_input.empty or df_input.shape[1] != 1:
-            st.error("Please upload a file with exactly one column of SKUs.")
-        else:
+        if uploaded_file.name.endswith(".xlsx"):
+            df_input = pd.read_excel(uploaded_file)
+            if df_input.empty or df_input.shape[1] != 1:
+                st.error("Please upload a file with exactly one column of SKUs.")
+                st.stop()
             skus = df_input.iloc[:, 0].dropna().astype(str).str.upper().tolist()
-            if st.button("Start Scraping"):
-                results = []
-                for idx, sku in enumerate(skus):
-                    st.info(f"Processing {sku} ({idx + 1}/{len(skus)})...")
-                    product_data = scrape_product_data(sku)
-                    results.append(product_data)
-                    time.sleep(3)  # gentle pacing
 
-                st.success("Scraping complete!")
-                st.json(results)
+        elif uploaded_file.name.endswith(".txt"):
+            content = uploaded_file.read().decode("utf-8")
+            skus = [line.strip().upper() for line in content.splitlines() if line.strip()]
 
-                json_str = json.dumps(results, indent=2)
-                st.download_button("Download JSON", data=json_str, file_name="appliance_specs.json", mime="application/json")
+        else:
+            st.error("Unsupported file type. Upload .xlsx or .txt")
+            st.stop()
+
+        if st.button("Start Scraping"):
+            results = []
+            for idx, sku in enumerate(skus):
+                st.info(f"Processing {sku} ({idx + 1}/{len(skus)})...")
+                product_data = scrape_product_data(sku)
+                results.append(product_data)
+                time.sleep(3)  # gentle pacing
+
+            st.success("Scraping complete!")
+            st.json(results)
+
+            json_str = json.dumps(results, indent=2)
+            st.download_button("Download JSON", data=json_str, file_name="appliance_specs.json", mime="application/json")
+
     except Exception as e:
         st.error(f"Failed to process file: {e}")
